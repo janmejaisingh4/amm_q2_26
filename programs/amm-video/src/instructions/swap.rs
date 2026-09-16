@@ -38,6 +38,24 @@ pub struct Swap<'info> {
     )]
     pub vault_y: Box<Account<'info, TokenAccount>>,
     #[account(
+        seeds = [b"treasury", config.key().as_ref()],
+        bump,
+    )]
+    /// CHECK: The treasury PDA is only used as the authority for its token accounts.
+    pub treasury: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        associated_token::mint = mint_x,
+        associated_token::authority = treasury,
+    )]
+    pub treasury_x: Box<Account<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint_y,
+        associated_token::authority = treasury,
+    )]
+    pub treasury_y: Box<Account<'info, TokenAccount>>,
+    #[account(
         mut,
         associated_token::mint = mint_x,
         associated_token::authority = user,
@@ -56,6 +74,7 @@ pub struct Swap<'info> {
 
 impl<'info> Swap<'info> {
     pub fn swap(&mut self, is_x: bool, amount: u64, min: u64) -> Result<()> {
+        require!(!self.config.locked, AmmError::PoolLocked);
         require!(amount > 0, AmmError::InvalidAmount);
         let mut curve = ConstantProduct::init(
             self.vault_x.amount,
@@ -75,7 +94,13 @@ impl<'info> Swap<'info> {
             .swap(p, amount, min)
             .map_err(|_| AmmError::SlippageExceeded)?;
 
-        self.deposit_tokens(is_x, swap_result.deposit)?;
+        let reserve_amount = swap_result
+            .deposit
+            .checked_sub(swap_result.fee)
+            .ok_or(AmmError::Underflow)?;
+
+        self.deposit_tokens(is_x, reserve_amount)?;
+        self.deposit_fee(is_x, swap_result.fee)?;
         self.withdraw_tokens(is_x, swap_result.withdraw)
     }
 
@@ -88,6 +113,31 @@ impl<'info> Swap<'info> {
             false => (
                 self.user_y.to_account_info(),
                 self.vault_y.to_account_info(),
+            ),
+        };
+
+        transfer(
+            CpiContext::new(
+                self.token_program.key(),
+                Transfer {
+                    from,
+                    to,
+                    authority: self.user.to_account_info(),
+                },
+            ),
+            amount,
+        )
+    }
+
+    pub fn deposit_fee(&mut self, is_x: bool, amount: u64) -> Result<()> {
+        let (from, to) = match is_x {
+            true => (
+                self.user_x.to_account_info(),
+                self.treasury_x.to_account_info(),
+            ),
+            false => (
+                self.user_y.to_account_info(),
+                self.treasury_y.to_account_info(),
             ),
         };
 

@@ -4,7 +4,7 @@ use anchor_spl::{
     token::{Mint, Token, TokenAccount},
 };
 
-use crate::state::Config;
+use crate::{error::AmmError, state::Config};
 
 #[derive(Accounts)]
 #[instruction(seed: u64)]
@@ -39,6 +39,29 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = initializer,
+        seeds = [b"treasury", config.key().as_ref()],
+        bump,
+        space = 0,
+    )]
+    /// CHECK: The treasury PDA is only used as the authority for its token accounts.
+    pub treasury: UncheckedAccount<'info>,
+    #[account(
+        init,
+        payer = initializer,
+        associated_token::mint = mint_x,
+        associated_token::authority = treasury,
+    )]
+    pub treasury_x: Account<'info, TokenAccount>,
+    #[account(
+        init,
+        payer = initializer,
+        associated_token::mint = mint_y,
+        associated_token::authority = treasury,
+    )]
+    pub treasury_y: Account<'info, TokenAccount>,
+    #[account(
+        init,
+        payer = initializer,
         seeds = [b"config", seed.to_le_bytes().as_ref()],
         bump,
         space = Config::DISCRIMINATOR.len() + Config::INIT_SPACE,
@@ -57,6 +80,8 @@ impl<'info> Initialize<'info> {
         authority: Option<Pubkey>,
         bumps: InitializeBumps,
     ) -> Result<()> {
+        require!(fee <= 10_000, AmmError::FeePercentErr);
+
         self.config.set_inner(Config {
             seed,
             authority,

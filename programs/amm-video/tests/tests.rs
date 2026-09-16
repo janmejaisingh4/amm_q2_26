@@ -35,6 +35,9 @@ fn setup() -> (
     Pubkey,
     Pubkey,
     Pubkey,
+    Pubkey,
+    Pubkey,
+    Pubkey,
 ) {
     let program_id = amm_video::id();
     let payer = Keypair::new();
@@ -64,18 +67,36 @@ fn setup() -> (
     // Derive the PDA for the vault associated token account using the config PDA and Mint A
     let vault_x = associated_token::get_associated_token_address(&config, &mint_x);
     let vault_y = associated_token::get_associated_token_address(&config, &mint_y);
+    let treasury =
+        Pubkey::find_program_address(&[b"treasury", config.as_ref()], &amm_video::id()).0;
+    let treasury_x = associated_token::get_associated_token_address(&treasury, &mint_x);
+    let treasury_y = associated_token::get_associated_token_address(&treasury, &mint_y);
 
     (
-        svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+        svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y, treasury, treasury_x,
+        treasury_y,
     )
 }
 
 #[test]
 fn test_initialize() {
-    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+    let (
+        mut svm,
+        payer,
+        mint_x,
+        mint_y,
+        config,
+        mint_lp,
+        vault_x,
+        vault_y,
+        treasury,
+        treasury_x,
+        treasury_y,
+    ) = setup();
 
     let instruction = create_initialise_ix(
-        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y, treasury, treasury_x,
+        treasury_y,
     );
     let res = send(&mut svm, &[instruction], &payer, &[&payer]);
     assert!(res.is_ok());
@@ -83,9 +104,22 @@ fn test_initialize() {
 
 #[test]
 pub fn test_deposit() {
-    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+    let (
+        mut svm,
+        payer,
+        mint_x,
+        mint_y,
+        config,
+        mint_lp,
+        vault_x,
+        vault_y,
+        treasury,
+        treasury_x,
+        treasury_y,
+    ) = setup();
     let init_ix = create_initialise_ix(
-        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y, treasury, treasury_x,
+        treasury_y,
     );
 
     let deposit_ix = create_deposit_ix(
@@ -98,9 +132,22 @@ pub fn test_deposit() {
 
 #[test]
 pub fn test_withdraw() {
-    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+    let (
+        mut svm,
+        payer,
+        mint_x,
+        mint_y,
+        config,
+        mint_lp,
+        vault_x,
+        vault_y,
+        treasury,
+        treasury_x,
+        treasury_y,
+    ) = setup();
     let init_ix = create_initialise_ix(
-        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y, treasury, treasury_x,
+        treasury_y,
     );
 
     let deposit_ix = create_deposit_ix(
@@ -121,9 +168,22 @@ pub fn test_withdraw() {
 
 #[test]
 pub fn test_swap() {
-    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+    let (
+        mut svm,
+        payer,
+        mint_x,
+        mint_y,
+        config,
+        mint_lp,
+        vault_x,
+        vault_y,
+        treasury,
+        treasury_x,
+        treasury_y,
+    ) = setup();
     let init_ix = create_initialise_ix(
-        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y, treasury, treasury_x,
+        treasury_y,
     );
 
     let deposit_ix = create_deposit_ix(
@@ -131,7 +191,8 @@ pub fn test_swap() {
     );
 
     let swap_ix = create_swap_ix(
-        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y, treasury, treasury_x,
+        treasury_y,
     );
 
     let res = send(&mut svm, &[init_ix, deposit_ix, swap_ix], &payer, &[&payer]);
