@@ -1,4 +1,4 @@
-# AMM Video
+# AMM
 
 A constant-product automated market maker (AMM) built with Anchor and Rust on Solana. The program supports pool initialization, liquidity provision, liquidity withdrawal, and token swaps with configurable fees collected in treasury accounts.
 
